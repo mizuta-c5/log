@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>kaityo256/log から抽出できる情報の調査</title>
+<style>
+  :root {
+    --bg: #fafbfc; --bg-card: #ffffff; --fg: #1f2328; --muted: #57606a;
+    --accent: #0969da; --accent-soft: #ddf4ff;
+    --good: #1a7f37; --good-soft: #dafbe1;
+    --warn: #9a6700; --warn-soft: #fff8c5;
+    --bad: #cf222e;  --bad-soft: #ffebe9;
+    --border: #d0d7de; --code-bg: #f6f8fa; --code-fg: #953800;
+    --stage-1: #2563eb; --stage-2: #7c3aed; --stage-3: #db2777;
+    --stage-4: #ea580c; --stage-5: #16a34a;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: "Hiragino Sans", "Yu Gothic", system-ui, -apple-system, sans-serif;
+         background: var(--bg); color: var(--fg); font-size: 1.05rem; line-height: 1.9;
+         margin: 0; padding: 2.5rem 1.2rem; }
+  main { max-width: 1040px; margin: 0 auto; }
+  p, .callout, .terms, .meta { max-width: 880px; margin-left: auto; margin-right: auto; }
+  h1 { font-size: 1.85rem; line-height: 1.4; border-bottom: 3px solid var(--accent);
+       padding-bottom: 0.5rem; margin: 0 0 1.5rem; }
+  h1 small { font-size: 0.98rem; color: var(--fg); }
+  h2 { font-size: 1.35rem; margin-top: 3rem; padding: 0.45rem 0.9rem;
+       background: var(--accent-soft); border-left: 5px solid var(--accent); border-radius: 4px; }
+  p { margin: 1rem 0; }
+  .fig { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+         padding: 1.4rem 1.2rem; margin: 1.6rem 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .fig svg { display: block; width: 100%; max-width: 1000px; height: auto; margin: 0 auto; }
+  .cap { text-align: center; color: var(--fg); font-size: 0.92rem; margin: 0.7rem 0 0; line-height: 1.6; }
+  code { background: var(--code-bg); padding: 0.1rem 0.4rem; border-radius: 3px;
+         font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.9em; color: var(--code-fg); }
+  .meta { display: grid; grid-template-columns: max-content 1fr; gap: 0.4rem 1.2rem;
+          background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+          padding: 1rem 1.4rem; margin: 1rem 0; }
+  .meta dt { font-weight: bold; }
+  .meta dd { margin: 0; }
+  .callout { border-radius: 6px; padding: 0.8rem 1rem; margin: 1rem 0; border-left: 4px solid; }
+  .callout.good { background: var(--good-soft); border-color: var(--good); }
+  .callout strong { display: block; margin-bottom: 0.3rem; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; background: var(--bg-card);
+          border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  th, td { padding: 0.6rem 0.8rem; text-align: left; border-bottom: 1px solid var(--border);
+           vertical-align: top; }
+  th { background: var(--code-bg); font-size: 0.9rem; }
+  .terms { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.4rem; }
+  .terms dt { font-weight: bold; color: var(--accent); margin-top: 0.6rem; }
+  .terms dd { margin: 0.2rem 0 0.6rem 1rem; }
+  .svg-diagram { width: 100%; display: block; margin: 12px auto; }
+  .svg-diagram text { fill: var(--fg); font-size: 15px;
+                      font-family: "Hiragino Sans", "Yu Gothic", system-ui, sans-serif; }
+  .svg-node { fill: var(--bg-card); stroke: var(--muted); stroke-width: 2; }
+  .svg-box { fill: var(--bg-card); stroke-width: 2; }
+  .svg-box.stage-1 { stroke: var(--stage-1); }
+  .svg-arrow { stroke: var(--muted); fill: none; stroke-width: 2; opacity: 0.7; }
+  .svg-edge-label { fill: var(--fg); font-size: 13px; font-weight: 700; }
+  footer { margin-top: 3rem; font-size: 0.9rem; }
+  @media (max-width: 760px) {
+    body { padding: 1.5rem 0.9rem; font-size: 1rem; }
+    .meta { grid-template-columns: 1fr; gap: 0.2rem 0; }
+    .meta dt { margin-top: 0.5rem; }
+    table { display: block; overflow-x: auto; }
+    .fig svg { min-width: 600px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<h1>kaityo256/log から抽出できる情報<br>
+<small>ある教授の公開日記 7年半分(2018年11月〜2026年7月)を調べた結果</small></h1>
+
+<dl class="meta">
+  <dt>対象</dt><dd><a href="https://github.com/kaityo256/log">github.com/kaityo256/log</a> — kaityo256(慶應義塾大学・渡辺宙志氏)の公開日記</dd>
+  <dt>規模</dt><dd>月別 Markdown 83ファイル、日別エントリ 約2,216件、約1.6MB</dd>
+  <dt>ライセンス</dt><dd>CC-BY(引用・分析は自由)</dd>
+</dl>
+
+<h2>🎯 結論</h2>
+
+<div class="callout good"><strong>抽出できるのは大きく4系統。</strong>
+「①技術トラブルの対処ノート」「②時系列で追える定量データ(査読数・執筆字数など)」「③研究者の働き方と役割の変遷」「④研究室輪講の論文・教科書リスト」。単なる日記ではなく、grep だけで掘れる構造化された研究者の作業ログになっている。</div>
+
+<div class="fig">
+<svg class="svg-diagram" viewBox="0 0 932 332" role="img">
+<defs><marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1,1 L8,4.5 L1,8 z" fill="var(--muted)"/></marker></defs>
+<line class="svg-arrow" x1="283" y1="140" x2="499" y2="92" marker-end="url(#ah)"/>
+<rect x="330" y="104" width="122" height="24" rx="5" fill="var(--bg-card)"/>
+<text class="svg-edge-label" x="391" y="121" text-anchor="middle">grep: コード片</text>
+<line class="svg-arrow" x1="304" y1="157" x2="478" y2="145" marker-end="url(#ah)"/>
+<rect x="338" y="139" width="107" height="24" rx="5" fill="var(--bg-card)"/>
+<text class="svg-edge-label" x="391" y="156" text-anchor="middle">grep: 頻度語</text>
+<line class="svg-arrow" x1="304" y1="178" x2="478" y2="194" marker-end="url(#ah)"/>
+<rect x="346" y="174" width="90" height="24" rx="5" fill="var(--bg-card)"/>
+<text class="svg-edge-label" x="391" y="191" text-anchor="middle">通読: 傾向</text>
+<line class="svg-arrow" x1="272" y1="192" x2="510" y2="250" marker-end="url(#ah)"/>
+<rect x="330" y="209" width="122" height="24" rx="5" fill="var(--bg-card)"/>
+<text class="svg-edge-label" x="391" y="226" text-anchor="middle">grep: 箇条書き</text>
+<rect class="svg-node" x="28" y="140" width="276" height="52" rx="10"/>
+<text x="166" y="171" text-anchor="middle" font-weight="700">日記コーパス (83ヶ月・2,216日分)</text>
+<rect class="svg-box stage-1" x="478" y="40" width="276" height="52" rx="10"/>
+<text x="616" y="71" text-anchor="middle" font-weight="700">① 技術トラブル対処ノート</text>
+<rect class="svg-box stage-1" x="478" y="110" width="276" height="52" rx="10"/>
+<text x="616" y="141" text-anchor="middle" font-weight="700">② 定量データ (時系列)</text>
+<rect class="svg-box stage-1" x="478" y="180" width="276" height="52" rx="10"/>
+<text x="616" y="211" text-anchor="middle" font-weight="700">③ 働き方・役割の変遷</text>
+<rect class="svg-box stage-1" x="478" y="250" width="276" height="52" rx="10"/>
+<text x="616" y="281" text-anchor="middle" font-weight="700">④ 輪講の論文・教科書リスト</text>
+</svg>
+<p class="cap">日記コーパスから抽出できる4系統(青枠)。矢印のラベルは抽出手段 — ①②④は grep でほぼ機械的に取れ、③だけ通読して読み取る。</p>
+</div>
+
+<h2>📦 用語ミニ辞典</h2>
+
+<dl class="terms">
+  <dt>コーパス</dt><dd>分析対象として集めたテキストの集合。ここでは日記85ヶ月分を指す。</dd>
+  <dt>grep</dt><dd>テキストからパターンに一致する行を検索するコマンド。本調査の件数はすべて grep で数えた。</dd>
+  <dt>輪講</dt><dd>研究室で論文や教科書を分担して読み、順番に発表するゼミ形式。</dd>
+  <dt>査読</dt><dd>投稿された論文を同分野の研究者が審査すること。研究者の隠れた業務負荷の代表。</dd>
+  <dt>科研費</dt><dd>科学研究費助成事業。日本の研究者の主要な研究資金で、申請・報告の事務作業を伴う。</dd>
+  <dt>pandoc</dt><dd>Markdown から HTML などへ文書を変換するツール。この日記の公開に使われている。</dd>
+  <dt>GitHub Pages</dt><dd>GitHub のリポジトリ内容をそのままウェブサイトとして公開する仕組み。</dd>
+  <dt>富岳</dt><dd>理化学研究所のスーパーコンピュータ。著者が計算資源として日常的に使っている。</dd>
+</dl>
+
+<h2>📚 背景 — このリポジトリは何か</h2>
+
+<p>著者が「後で自分で読み返すため」に2018年11月から毎日つけている公開日記で、書かなかった日も <code>NOP</code> と明記する徹底ぶり(221件)。Markdown を push すると GitHub Actions が pandoc で HTML に変換し、GitHub Pages に自動公開される。日記そのものに加えて、この「makefile + pandoc + Actions」という最小構成の静的サイトの作り方自体もひとつの知見になっている。</p>
+
+<h2>🧩 ① 技術トラブル対処ノート — 最大の資産</h2>
+
+<p>83ファイル中79ファイルがコードブロックを含み、コードフェンスは約2,550行。エラーメッセージを貼り、原因と解決を数行で残すスタイルが7年半一貫している。Mac + HPC 環境の「同じ穴にはまった人」への実用価値が高い。</p>
+
+<table>
+  <tr><th>日付</th><th>トラブルと解決</th></tr>
+  <tr><td>2018/11/14</td><td>AMD EPYC で <code>gem install cairo</code> が失敗 → <code>ruby-devel</code> 不足を特定して解決</td></tr>
+  <tr><td>2021/04/06</td><td>ffmpeg が <code>dyld: libaom not loaded</code> → <code>brew reinstall ffmpeg</code>(副作用の Python 上書きも記録)</td></tr>
+  <tr><td>2021/04/09</td><td>svn のエラーを <code>LANG=C</code> で英語化してから原因を特定する、という調査手順ごと記録</td></tr>
+  <tr><td>2023/09/26</td><td>SSL 証明書の期限を <code>openssl s_client</code> で確認する手順</td></tr>
+  <tr><td>2026/07/04</td><td>Mac の gnuplot が Qt の cocoa プラグインエラー → <code>brew reinstall qt</code> で解決</td></tr>
+</table>
+
+<h2>🧩 ② 定量データ — 時系列で分析できる指標</h2>
+
+<p>短文の日記だが表現が定型的なので、grep だけで研究者の活動量を数値化できる。</p>
+
+<table>
+  <tr><th>指標</th><th>grep 件数</th><th>何がわかるか</th></tr>
+  <tr><td>査読</td><td>202件</td><td>隠れた業務負荷の推移。月別に集計すればピークが見える</td></tr>
+  <tr><td>研究室ミーティング/輪講</td><td>211 + 105件</td><td>研究室運営の固定リズム(木曜前後に集中)</td></tr>
+  <tr><td>執筆字数「〜字。」</td><td>2026年に日次で出現</td><td>書籍原稿の進捗。「41,121字 → つまらんと削って38,554字」のような増減も追える</td></tr>
+  <tr><td>Zenn / Qiita リンク</td><td>49 / 32件</td><td>発信活動と、Qiita から Zenn への移行(2021/04)</td></tr>
+  <tr><td>富岳・ジョブ関連</td><td>28 + 34件</td><td>スパコン運用の実態(定期保守とジョブ投入の攻防)</td></tr>
+  <tr><td>疲労語(疲れた・つらい 等)</td><td>ほぼ全月に分布</td><td>主観的負荷の代理指標。2021/9・2023/8・2024/7 にピーク</td></tr>
+</table>
+
+<h2>🧩 ③ 働き方・役割の変遷 — 通読して見えるもの</h2>
+
+<p>年別の記述量は 2021〜2023年がピーク(年 260〜349KB)。内容の重心は3期に分かれて移っていて、大学教員のキャリアで研究時間がどう侵食されていくかの実録になっている。</p>
+
+<table>
+  <tr><th>時期</th><th>重心</th><th>象徴的な記述</th></tr>
+  <tr><td>2018〜2020年</td><td>研究とコード最適化が中心</td><td>SIMD/AVX2 チューニング、京・富岳向けの MD コード開発</td></tr>
+  <tr><td>2021〜2023年</td><td>教育コンテンツ整備が急増</td><td>講義動画の編集、GitHub 演習・Zenn 記事の整備</td></tr>
+  <tr><td>2024〜2026年</td><td>管理職業務が侵食</td><td>「主任業務と理事会と書き物でいっぱいいっぱい。さらに査読。キツすぎ」(2026/07/03)</td></tr>
+</table>
+
+<h2>🧩 ④ 輪講の論文・教科書リスト</h2>
+
+<p>研究室ミーティングの回では読んだ論文が著者・年つきの箇条書きで残っており、約162件を機械的に抽出できる。分野は統計力学・機械学習・流体・スピン系・ネットワーク科学と幅広く、「物理系研究室がいま何を読んでいるか」のサンプルになる。教科書輪読も章単位で記録されていて(田崎『統計力学』、佐々『熱力学入門』など)、統計力学の学習カリキュラムとしてそのまま使える。</p>
+
+<h2>🎯 まとめ — 自分の日記に活かせること</h2>
+
+<p>この日記が7年半後に「掘れる資産」になっているのは、次の3つの型を守っているからと言える。(1) エラーは本文を貼り、解決を1〜3行で書く。(2)「査読」「〜字。」のような定型表現で書くので、後から grep で数えられる。(3) 書かない日も NOP と残すので、時系列が途切れない。同じ形式で日記をつけるなら、この3点をまねるのが一番効く。</p>
+
+<footer>
+生成日: 2026-07-11 · 出典: <a href="https://github.com/kaityo256/log">kaityo256/log</a>(CC-BY)を clone して月別全83ファイルを grep + サンプル精読(d201811 / d202104 / d202309 / d202607)
+</footer>
+
+</main>
+</body>
+</html>
